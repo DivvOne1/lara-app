@@ -3,12 +3,25 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
+use App\Http\Requests\RegisterRequest;
+use App\Services\UserService;
+use Illuminate\Support\Facades\Auth;
 
 class ClientController extends Controller
 {
+    /**
+     * @var UserService
+     */
+    protected $userService;
+
+    /**
+     * @param UserService $userService
+     */
+    public function __construct(UserService $userService)
+    {
+        $this->userService = $userService;
+    }
+
     /**
      * @return \Illuminate\Contracts\Foundation\Application|\Illuminate\Contracts\View\Factory|\Illuminate\Contracts\View\View
      */
@@ -26,31 +39,22 @@ class ClientController extends Controller
     }
 
     /**
-     * @param Request $request
+     * @param RegisterRequest $request
      * @return \Illuminate\Http\RedirectResponse
      */
-    public function register(Request $request)
+    public function register(RegisterRequest $request)
     {
-        $validatedData = $request->validate([
-            'email' => 'required|email|unique:users',
-            'password' => 'required|min:8',
-            'phone' => 'required|string',
-        ]);
-
-        $existingUser = User::where('email', $validatedData['email'])->first();
-        if ($existingUser) {
+        if (User::where('email', $request->email)->exists()) {
             return redirect()->back()->withErrors(['email' => 'Email уже занят.']);
         }
 
-        DB::transaction(function () use ($validatedData) {
-            $user = new User();
-            $user->email = $validatedData['email'];
-            $user->password = Hash::make($validatedData['password']);
-            $user->role_id = 1; // Роль клиента
-            $user->phone = $validatedData['phone'];
-            $user->save();
-        });
+        $user = $this->userService->register($request->validated());
 
-        return redirect()->route('client.dashboard')->with('success', 'Вы успешно зарегистрировались как клиент.');
+        if ($user) {
+            Auth::login($user);
+            return redirect()->route('client.dashboard')->with('success', 'Вы успешно зарегистрировались как клиент.');
+        }
+
+        return redirect()->back()->withErrors(['registration' => 'Не удалось зарегистрировать пользователя.']);
     }
 }

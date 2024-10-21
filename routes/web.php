@@ -14,7 +14,7 @@ Route::post('/client/register', [ClientController::class, 'register'])->name('cl
 Route::get('/client/dashboard', [ClientController::class, 'dashboard'])->name('client.dashboard')->middleware('check.role:1');
 
 Route::get('/courier/register', [CourierController::class, 'showRegistrationForm'])->name('courier.register');
-Route::post('/courier/register', [CourierController::class, 'registerСourier'])->name('courier.register');
-Route::get('/courier/dashboard', [CourierController::class, 'dashboard'])->name('courier.courier-dashboard')->middleware('check.role:2');
+Route::post('/courier/register', [CourierController::class, 'registerCourier'])->name('courier.register');
+Route::get('/courier/dashboard', [CourierController::class, 'dashboard'])->name('courier.dashboard')->middleware('check.role:2');
 
 Auth::routes();

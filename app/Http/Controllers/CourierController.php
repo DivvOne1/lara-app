@@ -4,12 +4,24 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
+use App\Services\UserRegistrationService;
+use App\Services\LockService;
 
 class CourierController extends Controller
 {
+    protected $registrationService;
+    protected $lockService;
+
+    /**
+     * @param UserRegistrationService $registrationService
+     * @param LockService $lockService
+     */
+    public function __construct(UserRegistrationService $registrationService, LockService $lockService)
+    {
+        $this->registrationService = $registrationService;
+        $this->lockService = $lockService;
+    }
+
     /**
      * @return \Illuminate\Contracts\Foundation\Application|\Illuminate\Contracts\View\Factory|\Illuminate\Contracts\View\View
      */
@@ -30,7 +42,7 @@ class CourierController extends Controller
      * @param Request $request
      * @return \Illuminate\Http\RedirectResponse
      */
-    public function registerСourier(Request $request)
+    public function registerCourier(Request $request)
     {
         $validatedData = $request->validate([
             'email' => 'required|email|unique:users',
@@ -38,27 +50,20 @@ class CourierController extends Controller
             'phone' => 'required|string|unique:users,phone,NULL,id,role_id,2',
         ]);
 
-        $existingUser = User::where('email', $validatedData['email'])->first();
-        if ($existingUser) {
-            return redirect()->back()->withErrors(['email' => 'Email уже занят.']);
+        $lock = $this->lockService->acquireLock($validatedData['phone']);
+        if (!$lock) {
+            return redirect()->back()->withErrors(['phone' => 'Номер телефона в данный момент недоступен. Пожалуйста, попробуйте позже.']);
         }
 
-        $existingCourier = User::where('phone', $validatedData['phone'])
-            ->where('role_id', 2)
-            ->first();
-        if ($existingCourier) {
-            return redirect()->back()->withErrors(['phone' => 'Номер телефона уже занят курьером.']);
+        $result = $this->registrationService->registerCourier($validatedData);
+
+        $this->lockService->releaseLock($validatedData['phone']);
+
+        if ($result['success']) {
+            return redirect()->route($result['route'])->with('success', $result['message']);
         }
 
-        $user = new User();
-        $user->email = $validatedData['email'];
-        $user->password = Hash::make($validatedData['password']);
-        $user->role_id = 2; // Роль курьера
-        $user->phone = $validatedData['phone'];
-        $user->save();
-
-        Auth::login($user);
-
-        return redirect()->route('courier.dashboard')->with('success', 'Вы успешно зарегистрировались как курьер.');
+        return redirect()->back()->withErrors(['phone' => $result['message']]);
     }
 }
+
